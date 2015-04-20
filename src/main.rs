@@ -19,40 +19,58 @@ struct Pool<T, F: Fn() -> T> {
     count: i32
 }
 
-impl <T, F> Pool<T, F> {
-    fn new<F>(size: i32, factory: F)-> Pool<Entry<T>, F>
-    where F:Fn() -> T {
-        let pool = Pool {
+impl <T, F: Fn() -> T> Pool<T, F> {
+
+    pub fn new(size: i32, factory: F)-> Pool<T, F> {
+        //let pool =
+        Pool {
             available: Vec::new(),
             in_use: Vec::new(),
             factory: factory,
             size: size,
             count: 0i32
-        };
-
-        for _ in 0..size {
-            pool.available.push(factory());
         }
+
+        /*for _ in 0..size {
+            pool.available.push(Entry{data:factory()});
+        }*/
     }
 
-    fn get(&mut self) -> Option<Entry<T>> {
+    fn call_closure<C: Fn()->T>(&mut self, c1: &C)->Arc<T> {
+        Arc::new(c1())
+    }
+
+    fn increase(&mut self) {
+        self.count = self.count + 1;
+    }
+
+    pub fn get(&self) -> Option<&Arc<Entry<T>>> {
 
         if(self.count == 0) {
-            self.in_use.push(Arc::new(Entry{data:self.factory(), count:1}));
-            return Option::Some(self.in_use.last().clone());
+            let entry = Entry{data: self.call_closure(&self.factory)};
+            self.in_use.push(Arc::new(entry));
+
+            return self.in_use.last().clone();
         } else {
             return match self.available.pop() {
                     None => {
-                        if self.count < self.limit {
-                            self.in_use.push(Arc::new(Entry{data:self.factory()}));
-                            self.count = self.count + 1;
+                        if self.count < self.size {
 
-                            Option::Some(self.in_use.last().clone());
+                            let entry = Entry{data:self.call_closure(&self.factory)};
+
+                            self.in_use.push(Arc::new(entry));
+
+                            self.increase();
+
+                            self.in_use.last().clone()
+                        } else {
+                            Option::None
                         }
                     }
                     Some(arc_entry) => {
                         self.in_use.push(arc_entry);
-                        Option::Some(self.in_use.last().clone());
+
+                        self.in_use.last().clone()
                     }
             }
         }
